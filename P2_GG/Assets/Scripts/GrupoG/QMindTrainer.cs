@@ -140,9 +140,12 @@ namespace GrupoG
 
         private float GetReward(CellInfo pos)
         {
-            if (pos.Equals(OtherPosition)) return -100f; // Muerte
-            return 1f; // Supervivencia
+            if (pos.Equals(OtherPosition))
+                return -1f;        // muerte
+
+            return 0.05f;          // seguir vivo
         }
+
 
         private void EndEpisode()
         {
