@@ -9,23 +9,23 @@ using QMind;
 
 namespace GrupoG
 {
-    public class QMindTrainer : IQMindTrainer
+    public class QMindTrainer : IQMindTrainer // Entrenamos al agente
     {
-        // Constantes y Configuración
-        private const string CSV_PATH = "Assets/Scripts/GrupoG/TablaQ.csv"; 
-        private const int NUM_ACTIONS = 4;
-        private const int NUM_STATES = 144;
+        // Constantes:
+        private const string CSV_PATH = "Assets/Scripts/GrupoG/TablaQ.csv"; // Ruta de la tablaQ.csv
+        private const int NUM_ACTIONS = 4; // Norte, sur, este y oeste = 4
+        private const int NUM_STATES = 144; // 9 Posiciones Relativas * 16 Combinaciones de muros = 144 Estados
 
-        // Variables de estado
-        private TablaQLearning _qTable;
+        // Variables de estado:
+        private TablaQLearning _qTable; // Para almacenar los valores
         private QMindTrainerParams _params;
         private WorldInfo _world;
-        private INavigationAlgorithm _enemyNav;
+        private INavigationAlgorithm _enemyNav; // Algoritmo de navegación
 
         private float _accumulatedReward;
         private float _avgReturn;
 
-        // Propiedades de la Interfaz
+        // Propiedades de la interfaz:
         public int CurrentEpisode { get; private set; }
         public int CurrentStep { get; private set; }
         public CellInfo AgentPosition { get; private set; }
@@ -36,48 +36,50 @@ namespace GrupoG
         public event EventHandler OnEpisodeStarted;
         public event EventHandler OnEpisodeFinished;
 
+        // Inicializamos:
         public void Initialize(QMindTrainerParams trainerParams, WorldInfo worldInfo, INavigationAlgorithm navAlgo)
         {
             Debug.Log("[Trainer] Inicializando sistema Q-Learning...");
-            Time.timeScale = 10f; // Aceleramos el entrenamiento
+            Time.timeScale = 10f; // Aceleramos el tiempo
 
             _params = trainerParams;
             _world = worldInfo;
             _enemyNav = navAlgo;
+            // Creamos la tabla Q:
             _qTable = new TablaQLearning(NUM_ACTIONS, NUM_STATES);
 
-            // Intentar recuperar entrenamiento previo
+            // Para intentar recuperar entrenamiento previo:
             LoadQTable();
 
-            ResetTrainingState();
-            StartNewEpisode();
+            ResetTrainingState(); // Reinicio de contadores
+            StartNewEpisode(); 
         }
 
         public void DoStep(bool isTraining)
         {
-            // 1. Percibir Estado S
+            // Calculamos el estado actual S:
             int currentState = CalculateState(AgentPosition, OtherPosition);
 
-            // 2. Elegir Acción A (Epsilon-Greedy)
+            // Elegimos una acción A con epsilon-greedy:
             int action = SelectAction(currentState, isTraining);
 
-            // 3. Ejecutar Acción y observar S'
+            // Ejecutamos la acci´on y tenemos nuevo estado S:
             CellInfo nextPos = MoveUtils.GetAgentNextStep(action, AgentPosition, _world);
             int nextState = CalculateState(nextPos, OtherPosition);
 
-            // 4. Aprendizaje (solo si train == true)
+            // Aprendizaje (solo si train == true)
             if (isTraining)
             {
-                float reward = GetReward(nextPos);
+                float reward = GetReward(nextPos); // Para calcular la recompensa obtenida
                 _accumulatedReward += reward;
-                Learn(currentState, action, reward, nextState);
+                Learn(currentState, action, reward, nextState); // Actualizamos la tabla
             }
 
-            // 5. Actualizar físicas
+            // Actualizamos las posiciones:
             AgentPosition = nextPos;
             OtherPosition = MoveUtils.GetEnemyNextStep(_enemyNav, OtherPosition, AgentPosition);
 
-            // 6. Comprobar condiciones de fin de episodio
+            // Comprobamos si ha terminado el episodio:
             bool caught = AgentPosition.Equals(OtherPosition);
             bool timeOut = CurrentStep >= _params.maxSteps;
 
@@ -88,19 +90,19 @@ namespace GrupoG
             }
             else
             {
-                CurrentStep++;
+                CurrentStep++; // Avanza un paso si no ha terminado el episodio
             }
         }
 
         private void Learn(int state, int action, float reward, int nextState)
         {
             float currentQ = _qTable.GetValue(action, state);
-            float maxNextQ = _qTable.GetValue(_qTable.GetBestAction(nextState), nextState); // Q(s', a')
+            float maxNextQ = _qTable.GetValue(_qTable.GetBestAction(nextState), nextState);
 
-            // Ecuación de Bellman
+            // Ecuación de Bellman:
             float newQ = currentQ + _params.alpha * (reward + (_params.gamma * maxNextQ) - currentQ);
 
-            _qTable.SetValue(action, state, newQ);
+            _qTable.SetValue(action, state, newQ); // Nuevo valor Q guardado
         }
 
         private int SelectAction(int state, bool allowExploration)
@@ -110,19 +112,19 @@ namespace GrupoG
             {
                 return UnityEngine.Random.Range(0, NUM_ACTIONS);
             }
-            // Explotación: Mejor valor conocido
+            // Explotación: mejor acción conocida
             return _qTable.GetBestAction(state);
         }
 
-        // Definición de Estados: 9 Posiciones Relativas * 16 Combinaciones de muros = 144 Estados
+        // Calculamos el estado del entorno: 
         private int CalculateState(CellInfo agent, CellInfo enemy)
         {
-            // A. Posición relativa del enemigo (Grid 3x3 centrado en agente)
+            // A. Posición relativa del enemigo:
             int dx = Mathf.Clamp(enemy.x - agent.x, -1, 1) + 1; // 0, 1, 2
             int dy = Mathf.Clamp(enemy.y - agent.y, -1, 1) + 1; // 0, 1, 2
             int relativePos = dx * 3 + dy; // 0 a 8
 
-            // B. Muros alrededor (Norte, Este, Sur, Oeste) -> Bitmask
+            // B. Muros alrededor (Norte, Este, Sur, Oeste): Bitmask
             int wallsMask = 0;
             if (IsWalkable(agent.x, agent.y + 1)) wallsMask |= 1; // Norte (bit 0)
             if (IsWalkable(agent.x + 1, agent.y)) wallsMask |= 2; // Este (bit 1)
@@ -132,38 +134,40 @@ namespace GrupoG
             return (relativePos * 16) + wallsMask;
         }
 
+        // Booleano para comprobar si la celda es caminable:
         private bool IsWalkable(int x, int y)
         {
             if (x < 0 || y < 0 || x >= _world.WorldSize.x || y >= _world.WorldSize.y) return false;
             return _world[x, y].Walkable;
         }
 
+        // Obtenemos resompensa:
         private float GetReward(CellInfo pos)
         {
             if (pos.Equals(OtherPosition))
-                return -1f;        // muerte
+                return -1f;
 
-            return 0.05f;          // seguir vivo
+            return 0.05f; // Recompensa por seguir vivio
         }
 
-
+        // Fin de un episodio:
         private void EndEpisode()
         {
             CurrentEpisode++;
 
-            // Cálculo de media móvil para suavizar la gráfica
+            // Cálculo de media móvil para suavizar la recompensa:
             _avgReturn = Mathf.Lerp(_avgReturn, _accumulatedReward, 0.05f);
 
-            // Decaimiento de Epsilon (Linear decay)
+            // Reducción de epsilon (Linear decay):
             float progress = Mathf.Clamp01((float)CurrentEpisode / _params.episodes);
             if (progress < 0.8f)
                 _params.epsilon = Mathf.Lerp(0.8f, 0.1f, progress / 0.8f);
 
-            // Guardado periódico
+            // Guardado de la tabla:
             if (CurrentEpisode % _params.episodesBetweenSaves == 0)
                 SaveQTable();
 
-            StartNewEpisode();
+            StartNewEpisode(); // Empezamos un nuevo episodio
         }
 
         private void StartNewEpisode()
@@ -171,20 +175,21 @@ namespace GrupoG
             _accumulatedReward = 0;
             CurrentStep = 0;
 
-            // Respawn aleatorio
+            // Posiciones aleatorias para el agente y el enemigo:
             AgentPosition = _world.RandomCell();
             OtherPosition = _world.RandomCell();
 
             OnEpisodeStarted?.Invoke(this, EventArgs.Empty);
         }
 
+        // Reiniciamos los contadores del entrenamiento:
         private void ResetTrainingState()
         {
             CurrentEpisode = 0;
             _avgReturn = 0;
         }
 
-        // --- Persistencia CSV ---
+        // Guardamos la tabla en un archivo csv:
         private void SaveQTable()
         {
             try
@@ -207,6 +212,7 @@ namespace GrupoG
             catch (Exception e) { Debug.LogError($"Error guardando CSV: {e.Message}"); }
         }
 
+        // Para cargar la tabla:
         private void LoadQTable()
         {
             if (!File.Exists(CSV_PATH)) return;

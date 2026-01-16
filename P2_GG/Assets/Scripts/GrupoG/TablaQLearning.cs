@@ -10,6 +10,7 @@ namespace GrupoG
         public readonly int ActionCount;
         public readonly int StateCount;
 
+        // Constructor de la tabla:
         public TablaQLearning(int actions, int states)
         {
             ActionCount = actions;
@@ -17,6 +18,7 @@ namespace GrupoG
             _qMatrix = new float[ActionCount, StateCount];
         }
 
+        // Para devolver el valor Q de una acción y estado:
         public float GetValue(int action, int state)
         {
             if (IsIndexValid(action, state))
@@ -24,13 +26,14 @@ namespace GrupoG
             return 0f;
         }
 
+        // Asigna un valor Q:
         public void SetValue(int action, int state, float value)
         {
             if (IsIndexValid(action, state))
                 _qMatrix[action, state] = value;
         }
 
-        // Selecciona la acción con mayor valor Q. En caso de empate, elige al azar.
+        // Selecciona la acción con mayor valor Q:
         public int GetBestAction(int state)
         {
             float maxVal = float.MinValue;
@@ -53,7 +56,7 @@ namespace GrupoG
 
             // Si por algún error no hay candidatos, devolvemos 0
             if (candidates.Count == 0) return 0;
-            return candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            return candidates[UnityEngine.Random.Range(0, candidates.Count)]; // En caso de empate, se elige al azar
         }
 
         private bool IsIndexValid(int action, int state)
